@@ -46,12 +46,13 @@ BANCO_PALAVRAS = {
     ]
 }
 
+
 GABARITOS = [
     {
         'distribuicao': {'VERMELHO': 9, 'AZUL': 8, 'NEUTRO': 7, 'ASSASSINO': 1},
         'primeiro_jogador': 'VERMELHO'
-    },
-    {
+    }
+]
         'distribuicao': {'AZUL': 9, 'VERMELHO': 8, 'NEUTRO': 7, 'ASSASSINO': 1},
         'primeiro_jogador': 'AZUL'
     },
