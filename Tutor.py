@@ -62,6 +62,7 @@ GABARITOS = [
     {
         'distribuicao': {'AZUL': 8, 'VERMELHO': 9, 'NEUTRO': 7, 'ASSASSINO': 1},
         'primeiro_jogador': 
+    }
 class Gabarito:
     def __init__(self):
         self.template = random.choice(GABARITOS)
