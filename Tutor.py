@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 from collections import Counter
 import openai
 from elevenlabs import generate, set_api_key
-from elevenlabs import Voice, VoiceSettings
 import re
 
 # Configuração inicial do Streamlit
@@ -22,15 +21,17 @@ st.set_page_config(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Na inicialização dos clientes
+# Inicialização dos clientes
 try:
     # OpenAI (GPT-4)
-    openai_client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+    openai.api_key = st.secrets["openai"]["api_key"]
+    
     # ElevenLabs
-    eleven_client = Client(api_key=st.secrets["elevenlabs"]["api_key"])
+    set_api_key(st.secrets["elevenlabs"]["api_key"])
 except Exception as e:
     logger.error(f"Erro na inicialização dos clientes: {e}")
     st.error("Erro ao inicializar conexões. Por favor, tente novamente mais tarde.")
+
 # Constantes Globais
 COMPETENCIES = {
     "competency1": "Domínio da Norma Culta",
@@ -56,6 +57,7 @@ MODELOS_COMPETENCIAS = {
     "competency4": "ft:gpt-4o-2024-08-06:personal:competencia-4:AHDXewU3",
     "competency5": "ft:gpt-4o-2024-08-06:personal:competencia-5:AHGVPnJG"
 }
+
 
 def pagina_envio_redacao():
     """Página de envio de redação com campo de digitação e upload de arquivo txt."""
