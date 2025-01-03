@@ -1,1 +1,5 @@
-streamlit==1.29.0
+streamlit
+plotly
+anthropic
+elevenlabs
+python-dotenv
