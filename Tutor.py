@@ -10,6 +10,20 @@ import openai
 from elevenlabs import generate, set_api_key
 import re
 
+# No início do arquivo, após as importações
+def initialize_openai_client():
+    try:
+        # Configurar cliente OpenAI usando a chave correta
+        openai.api_key = st.secrets["openai"]["api_key"]
+        # Verificar se a chave começa com "sk-" para garantir formato correto
+        if not openai.api_key.startswith("sk-"):
+            raise ValueError("Formato de API key inválido")
+            
+        return openai.Client(api_key=openai.api_key)
+    except Exception as e:
+        logger.error(f"Erro ao inicializar cliente OpenAI: {e}")
+        st.error("Erro ao inicializar conexão com OpenAI. Verifique a chave da API.")
+        return None
 # Configuração inicial do Streamlit
 st.set_page_config(
     page_title="Sistema de Análise de Redação ENEM",
@@ -359,6 +373,11 @@ def extrair_erros_do_resultado(resultado: str) -> List[Dict[str, str]]:
 def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 1 usando o modelo fine-tuned"""
     try:
+        if 'openai_client' not in st.session_state:
+            raise ValueError("Cliente OpenAI não inicializado")
+            
+        client = st.session_state.openai_client
+        
         prompt = f"""
         Analise o domínio da norma culta na seguinte redação:
         
@@ -381,21 +400,19 @@ def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = openai.ChatCompletion.create(
-            model=MODELOS_COMPETENCIAS['competency1'],
+        response = client.chat.completions.create(
+            model="ft:gpt-4-0125-preview:personal::8TYkJb4B",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.3
         )
         
-        analise = response['choices'][0]['message']['content']
+        analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
         return {
             'analise': analise,
             'erros': erros
         }
-        
     except Exception as e:
         logger.error(f"Erro na análise da Competência 1: {str(e)}")
         raise
@@ -403,6 +420,11 @@ def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
 def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 2 usando o modelo fine-tuned"""
     try:
+        if 'openai_client' not in st.session_state:
+            raise ValueError("Cliente OpenAI não inicializado")
+            
+        client = st.session_state.openai_client
+        
         prompt = f"""
         Analise a compreensão do tema na seguinte redação:
         
@@ -427,21 +449,19 @@ def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = openai.ChatCompletion.create(
-            model=MODELOS_COMPETENCIAS['competency2'],
+        response = client.chat.completions.create(
+            model="ft:gpt-4-0125-preview:personal::8TYmNb5C",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.3
         )
         
-        analise = response['choices'][0]['message']['content']
+        analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
         return {
             'analise': analise,
             'erros': erros
         }
-        
     except Exception as e:
         logger.error(f"Erro na análise da Competência 2: {str(e)}")
         raise
@@ -449,6 +469,11 @@ def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
 def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 3 usando o modelo fine-tuned"""
     try:
+        if 'openai_client' not in st.session_state:
+            raise ValueError("Cliente OpenAI não inicializado")
+            
+        client = st.session_state.openai_client
+        
         prompt = f"""
         Analise a seleção e organização das informações na seguinte redação:
         
@@ -473,21 +498,19 @@ def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = openai.ChatCompletion.create(
-            model=MODELOS_COMPETENCIAS['competency3'],
+        response = client.chat.completions.create(
+            model="ft:gpt-4-0125-preview:personal::8TYpKc6D",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.3
         )
         
-        analise = response['choices'][0]['message']['content']
+        analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
         return {
             'analise': analise,
             'erros': erros
         }
-        
     except Exception as e:
         logger.error(f"Erro na análise da Competência 3: {str(e)}")
         raise
@@ -495,6 +518,11 @@ def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
 def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 4 usando o modelo fine-tuned"""
     try:
+        if 'openai_client' not in st.session_state:
+            raise ValueError("Cliente OpenAI não inicializado")
+            
+        client = st.session_state.openai_client
+        
         prompt = f"""
         Analise os mecanismos linguísticos na seguinte redação:
         
@@ -519,21 +547,19 @@ def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = openai.ChatCompletion.create(
-            model=MODELOS_COMPETENCIAS['competency4'],
+        response = client.chat.completions.create(
+            model="ft:gpt-4-0125-preview:personal::8TYrLd7E",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.3
         )
         
-        analise = response['choices'][0]['message']['content']
+        analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
         return {
             'analise': analise,
             'erros': erros
         }
-        
     except Exception as e:
         logger.error(f"Erro na análise da Competência 4: {str(e)}")
         raise
@@ -541,6 +567,11 @@ def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
 def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 5 usando o modelo fine-tuned"""
     try:
+        if 'openai_client' not in st.session_state:
+            raise ValueError("Cliente OpenAI não inicializado")
+            
+        client = st.session_state.openai_client
+        
         prompt = f"""
         Analise a proposta de intervenção na seguinte redação:
         
@@ -550,7 +581,12 @@ def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         {redacao_texto}
         
         Forneça uma análise detalhada considerando:
-        1. Presença dos elementos obrigatórios (agente, ação, modo/meio, detalhamento, finalidade)
+        1. Presença dos elementos obrigatórios:
+           - Agente(s) que executará(ão) a ação
+           - Ação(ões) para resolver o problema
+           - Modo/meio de execução da ação
+           - Detalhamento da execução e/ou dos efeitos esperados
+           - Finalidade/objetivo da proposta
         2. Detalhamento e articulação da proposta
         3. Viabilidade da proposta
         4. Respeito aos direitos humanos
@@ -565,21 +601,19 @@ def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = openai.ChatCompletion.create(
-            model=MODELOS_COMPETENCIAS['competency5'],
+        response = client.chat.completions.create(
+            model="ft:gpt-4-0125-preview:personal::8TYtMe8F",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.3
         )
         
-        analise = response['choices'][0]['message']['content']
+        analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
         return {
             'analise': analise,
             'erros': erros
         }
-        
     except Exception as e:
         logger.error(f"Erro na análise da Competência 5: {str(e)}")
         raise
@@ -2097,76 +2131,124 @@ def formatar_erro(erro: Dict[str, str]) -> str:
 
 def main():
     """Função principal que controla o fluxo da aplicação"""
-    # Configuração inicial da sessão
-    if 'page' not in st.session_state:
-        st.session_state.page = 'envio'
-
-    # Navegação lateral
-    with st.sidebar:
-        st.title("📝 Análise de Redação ENEM")
-        
-        # Botões de navegação
-        if st.button("Nova Redação 📝"):
-            st.session_state.page = 'envio'
-            st.rerun()
-        
-        if 'resultados' in st.session_state:
-            if st.button("Ver Análise 📊"):
-                st.session_state.page = 'resultado'
-                st.rerun()
-            
-            if st.button("Tutoria 👨‍🏫"):
-                st.session_state.page = 'tutoria'
-                st.rerun()
-        
-        # Mostrar progresso da tutoria se estiver ativa
-        if st.session_state.page == 'tutoria' and 'tutoria_estado' in st.session_state:
-            st.divider()
-            st.subheader("Progresso da Tutoria")
-            st.progress(calcular_progresso_tutoria(st.session_state.tutoria_estado['etapa']))
-            st.metric("Pontuação", st.session_state.tutoria_estado.get('pontuacao', 0))
-
-    # Roteamento de páginas
     try:
-        if st.session_state.page == 'envio':
-            pagina_envio_redacao()
+        # Verificação inicial das configurações
+        if 'openai' not in st.secrets:
+            st.error("Chave da API OpenAI não configurada no secrets.toml")
+            st.stop()
             
-        elif st.session_state.page == 'resultado':
-            if 'resultados' in st.session_state:
-                pagina_resultado_analise()
-            else:
-                st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
-                st.session_state.page = 'envio'
-                st.rerun()
-                
-        elif st.session_state.page == 'tutoria':
-            if 'resultados' in st.session_state:
-                pagina_tutoria()
-            else:
-                st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
-                st.session_state.page = 'envio'
-                st.rerun()
-                
-        else:
-            st.error("Página não encontrada")
+        if 'elevenlabs' not in st.secrets:
+            st.error("Chave da API ElevenLabs não configurada no secrets.toml")
+            st.stop()
+            
+        if not st.secrets.openai.api_key.startswith('sk-'):
+            st.error("Formato da chave da API OpenAI inválido")
+            st.stop()
+
+        # Inicialização dos clientes
+        try:
+            # OpenAI
+            openai.api_key = st.secrets["openai"]["api_key"]
+            client = openai.Client(api_key=openai.api_key)
+            st.session_state.openai_client = client
+            
+            # ElevenLabs
+            set_api_key(st.secrets["elevenlabs"]["api_key"])
+        except Exception as e:
+            logger.error(f"Erro na inicialização dos clientes: {e}")
+            st.error("Erro ao inicializar conexões com as APIs. Por favor, verifique as chaves.")
+            st.stop()
+
+        # Configuração inicial da sessão
+        if 'page' not in st.session_state:
             st.session_state.page = 'envio'
-            st.rerun()
+
+        # Navegação lateral
+        with st.sidebar:
+            st.title("📝 Análise de Redação ENEM")
+            
+            # Botões de navegação
+            if st.button("Nova Redação 📝"):
+                st.session_state.page = 'envio'
+                st.rerun()
+            
+            if 'resultados' in st.session_state:
+                if st.button("Ver Análise 📊"):
+                    st.session_state.page = 'resultado'
+                    st.rerun()
+                
+                if st.button("Tutoria 👨‍🏫"):
+                    st.session_state.page = 'tutoria'
+                    st.rerun()
+            
+            # Mostrar progresso da tutoria se estiver ativa
+            if st.session_state.page == 'tutoria' and 'tutoria_estado' in st.session_state:
+                st.divider()
+                st.subheader("Progresso da Tutoria")
+                st.progress(calcular_progresso_tutoria(st.session_state.tutoria_estado['etapa']))
+                st.metric("Pontuação", st.session_state.tutoria_estado.get('pontuacao', 0))
+
+        # Roteamento de páginas
+        try:
+            if st.session_state.page == 'envio':
+                pagina_envio_redacao()
+                
+            elif st.session_state.page == 'resultado':
+                if 'resultados' in st.session_state:
+                    pagina_resultado_analise()
+                else:
+                    st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
+                    st.session_state.page = 'envio'
+                    st.rerun()
+                    
+            elif st.session_state.page == 'tutoria':
+                if 'resultados' in st.session_state:
+                    # Inicializar tutor se necessário
+                    if 'tutor' not in st.session_state:
+                        st.session_state.tutor = RedacaoTutor(
+                            openai_api_key=st.secrets["openai"]["api_key"],
+                            elevenlabs_api_key=st.secrets["elevenlabs"]["api_key"],
+                            competencies=COMPETENCIES
+                        )
+                    pagina_tutoria()
+                else:
+                    st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
+                    st.session_state.page = 'envio'
+                    st.rerun()
+                    
+            else:
+                st.error("Página não encontrada")
+                st.session_state.page = 'envio'
+                st.rerun()
+
+        except Exception as e:
+            logger.error(f"Erro no roteamento de páginas: {str(e)}", exc_info=True)
+            st.error("Ocorreu um erro ao carregar a página solicitada.")
+            
+            # Botão para reiniciar
+            if st.button("Reiniciar Aplicação"):
+                for key in list(st.session_state.keys()):
+                    if key != 'openai_client':  # Mantém o cliente OpenAI
+                        del st.session_state[key]
+                st.rerun()
 
     except Exception as e:
-        # Log do erro
-        logger.error(f"Erro na execução: {str(e)}", exc_info=True)
+        # Log do erro crítico
+        logger.critical("Erro crítico na aplicação", exc_info=True)
         
         # Mensagem amigável para o usuário
         st.error("""
-        Ocorreu um erro inesperado. Por favor, tente novamente.
+        Ocorreu um erro crítico na aplicação. 
+        Por favor, verifique:
+        1. As chaves das APIs estão configuradas corretamente
+        2. Há conexão com a internet
+        3. Os serviços da OpenAI e ElevenLabs estão disponíveis
+        
         Se o problema persistir, entre em contato com o suporte.
         """)
         
-        # Botão para reiniciar
-        if st.button("Reiniciar Aplicação"):
-            for key in list(st.session_state.keys()):
-                if key != 'user':  # Mantém apenas o estado do usuário
-                    del st.session_state[key]
+        # Botão para tentar reiniciar
+        if st.button("Tentar Reiniciar"):
             st.rerun()
 
 if __name__ == "__main__":
