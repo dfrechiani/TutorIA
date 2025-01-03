@@ -7,7 +7,8 @@ from typing import Dict, List, Any, Tuple
 import plotly.graph_objects as go
 from collections import Counter
 from anthropic import Anthropic
-from elevenlabs import generate
+from elevenlabs import generate as generate_audio
+from elevenlabs import Voice, VoiceSettings
 import re
 
 # Configuração inicial do Streamlit
