@@ -13,17 +13,20 @@ import re
 # No início do arquivo, após as importações
 def initialize_openai_client():
     try:
-        # Configurar cliente OpenAI usando a chave correta
         openai.api_key = st.secrets["openai"]["api_key"]
-        # Verificar se a chave começa com "sk-" para garantir formato correto
         if not openai.api_key.startswith("sk-"):
-            raise ValueError("Formato de API key inválido")
-            
-        return openai.Client(api_key=openai.api_key)
+            raise ValueError("Invalid API key format")
+        client = openai.Client(api_key=openai.api_key)
+        # Store the client in session state
+        st.session_state.openai_client = client
+        return client
+    except KeyError:
+        logger.error("OpenAI API key not found in secrets")
+        st.error("OpenAI API key not configured")
     except Exception as e:
-        logger.error(f"Erro ao inicializar cliente OpenAI: {e}")
-        st.error("Erro ao inicializar conexão com OpenAI. Verifique a chave da API.")
-        return None
+        logger.error(f"Error initializing OpenAI client: {e}")
+        st.error("Error connecting to OpenAI")
+    return None
 # Configuração inicial do Streamlit
 st.set_page_config(
     page_title="Sistema de Análise de Redação ENEM",
@@ -378,40 +381,180 @@ def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
             
         client = st.session_state.openai_client
         
-        prompt = f"""
-        Analise o domínio da norma culta na seguinte redação:
+        criterios = {
+            'sintaxe': """
+            Analise os seguintes aspectos sintáticos na redação:
+            - Estrutura das frases e períodos
+            - Ordem dos termos
+            - Regência verbal e nominal
+            - Concordância verbal e nominal
+            - Paralelismo sintático
+            
+            Redação:
+            {redacao_texto}
+            
+            Identifique erros no formato:
+            ERRO
+            Trecho: "[trecho com erro]"
+            Descrição: [tipo de erro]
+            Explicação: [explicação detalhada]
+            Sugestão: [correção sugerida]
+            FIM_ERRO
+            """,
+            
+            'pontuacao': """
+            Analise o uso da pontuação na redação:
+            - Vírgulas
+            - Pontos finais
+            - Dois pontos
+            - Ponto e vírgula
+            - Outros sinais
+            
+            Redação:
+            {redacao_texto}
+            
+            Identifique erros no formato:
+            ERRO
+            Trecho: "[trecho com erro]"
+            Descrição: [tipo de erro]
+            Explicação: [explicação detalhada]
+            Sugestão: [correção sugerida]
+            FIM_ERRO
+            """,
+            
+            'ortografia': """
+            Analise aspectos ortográficos na redação:
+            - Grafia das palavras
+            - Acentuação
+            - Uso de maiúsculas/minúsculas
+            - Separação silábica
+            
+            Redação:
+            {redacao_texto}
+            
+            Identifique erros no formato:
+            ERRO
+            Trecho: "[trecho com erro]"
+            Descrição: [tipo de erro]
+            Explicação: [explicação detalhada]
+            Sugestão: [correção sugerida]
+            FIM_ERRO
+            """,
+            
+            'morfologia': """
+            Analise aspectos morfológicos na redação:
+            - Flexão de palavras
+            - Formação de palavras
+            - Classes gramaticais
+            - Conjugação verbal
+            
+            Redação:
+            {redacao_texto}
+            
+            Identifique erros no formato:
+            ERRO
+            Trecho: "[trecho com erro]"
+            Descrição: [tipo de erro]
+            Explicação: [explicação detalhada]
+            Sugestão: [correção sugerida]
+            FIM_ERRO
+            """
+        }
+
+        # Analisar cada critério separadamente
+        erros_por_criterio = {}
+        for criterio, prompt in criterios.items():
+            prompt_formatado = prompt.format(redacao_texto=redacao_texto)
+            resposta = client.chat.completions.create(
+                model="ft:gpt-4o-2024-08-06:personal:competencia-1:AHDQQucG",
+                messages=[{"role": "user", "content": prompt_formatado}],
+                temperature=0.3
+            )
+            erros_por_criterio[criterio] = extrair_erros_do_resultado(resposta.content)
         
-        Tema: {tema_redacao}
+        # Reunir todos os erros
+        todos_erros = []
+        for erros in erros_por_criterio.values():
+            todos_erros.extend(erros)
         
-        Texto:
-        {redacao_texto}
+        # Separar erros reais de sugestões estilísticas
+        erros_reais = []
+        sugestoes_estilo = []
         
-        Forneça uma análise detalhada considerando:
-        1. Uso correto da norma culta
-        2. Desvios gramaticais
-        3. Adequação da linguagem
-        4. Clareza e precisão
+        palavras_chave_sugestao = [
+            "pode ser melhorada",
+            "poderia ser",
+            "considerar",
+            "sugerimos",
+            "recomendamos",
+            "ficaria melhor",
+            "seria preferível",
+            "opcionalmente",
+            "para aprimorar",
+            "para enriquecer",
+            "estilo",
+            "clareza",
+            "mais elegante",
+            "sugestão de melhoria",
+            "alternativa",
+            "opcional"
+        ]
         
-        Para cada erro identificado, use o formato:
-        ERRO
-        Trecho: "[trecho exato do texto]"
-        Explicação: [explicação detalhada]
-        Sugestão: [sugestão de correção]
-        FIM_ERRO
+        for erro in todos_erros:
+            eh_sugestao = False
+            explicacao = erro.get('explicação', '').lower()
+            sugestao = erro.get('sugestão', '').lower()
+            
+            if any(palavra in explicacao or palavra in sugestao for palavra in palavras_chave_sugestao):
+                sugestoes_estilo.append(erro)
+            else:
+                if "crase" in erro.get('descrição', '').lower():
+                    explicacao = erro.get('explicação', '').lower()
+                    if (any(termo in explicacao for termo in ['artigo definido', 'sentido definido', 'locução']) and 
+                        any(termo in explicacao for termo in ['regência', 'preposição', 'artigo feminino'])):
+                        erros_reais.append(erro)
+                else:
+                    erros_reais.append(erro)
+
+        # Revisão final dos erros reais
+        erros_revisados = revisar_erros_competency1(erros_reais, redacao_texto)
+        
+        # Gerar análise final
+        prompt_analise = f"""
+        Com base nos seguintes ERROS CONFIRMADOS no texto (excluindo sugestões de melhoria estilística),
+        gere uma análise detalhada da Competência 1 (Domínio da Norma Culta):
+        
+        Total de erros confirmados: {len(erros_revisados)}
+        
+        Detalhamento dos erros confirmados:
+        {json.dumps(erros_revisados, indent=2)}
+        
+        Forneça uma análise que:
+        1. Avalie o domínio geral da norma culta considerando apenas erros confirmados
+        2. Destaque os tipos de erros mais frequentes e sua gravidade
+        3. Analise o impacto dos erros na compreensão do texto
+        4. Avalie a consistência no uso da norma culta
+        5. Forneça uma visão geral da qualidade técnica do texto
+        
+        Formato da resposta:
+        Análise Geral: [Sua análise aqui]
+        Erros Principais: [Lista dos erros mais relevantes]
+        Impacto na Compreensão: [Análise do impacto dos erros]
+        Consistência: [Avaliação da consistência no uso da norma]
+        Conclusão: [Visão geral da qualidade técnica]
         """
         
-        response = client.chat.completions.create(
+        resposta_analise = client.chat.completions.create(
             model="ft:gpt-4-0125-preview:personal::8TYkJb4B",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": prompt_analise}],
             temperature=0.3
         )
         
-        analise = response.choices[0].message.content
-        erros = extrair_erros_do_resultado(analise)
-        
         return {
-            'analise': analise,
-            'erros': erros
+            'analise': resposta_analise.content,
+            'erros': erros_revisados,
+            'sugestoes_estilo': sugestoes_estilo,
+            'total_erros': len(erros_revisados)
         }
     except Exception as e:
         logger.error(f"Erro na análise da Competência 1: {str(e)}")
@@ -444,13 +587,14 @@ def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         Para cada problema identificado, use o formato:
         ERRO
         Trecho: "[trecho exato do texto]"
+        Descrição: [tipo de erro]
         Explicação: [explicação detalhada]
-        Sugestão: [sugestão de melhoria]
+        Sugestão: [correção sugerida]
         FIM_ERRO
         """
         
         response = client.chat.completions.create(
-            model="ft:gpt-4-0125-preview:personal::8TYmNb5C",
+            model="ft:gpt-4o-2024-08-06:personal:competencia-2:AHDT84HO",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
@@ -458,9 +602,12 @@ def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
+        # Revisão dos erros
+        erros_revisados = revisar_erros_competency2(erros, redacao_texto)
+        
         return {
             'analise': analise,
-            'erros': erros
+            'erros': erros_revisados
         }
     except Exception as e:
         logger.error(f"Erro na análise da Competência 2: {str(e)}")
@@ -493,13 +640,14 @@ def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         Para cada problema identificado, use o formato:
         ERRO
         Trecho: "[trecho exato do texto]"
+        Descrição: [tipo de erro]
         Explicação: [explicação detalhada]
-        Sugestão: [sugestão de melhoria]
+        Sugestão: [correção sugerida]
         FIM_ERRO
         """
         
         response = client.chat.completions.create(
-            model="ft:gpt-4-0125-preview:personal::8TYpKc6D",
+            model="ft:gpt-4o-2024-08-06:personal:competencia-3:AHDUfZRb",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
@@ -507,14 +655,17 @@ def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
+        # Revisão dos erros
+        erros_revisados = revisar_erros_competency3(erros, redacao_texto)
+        
         return {
             'analise': analise,
-            'erros': erros
+            'erros': erros_revisados
         }
     except Exception as e:
         logger.error(f"Erro na análise da Competência 3: {str(e)}")
         raise
-
+        
 def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """Análise da Competência 4 usando o modelo fine-tuned"""
     try:
@@ -539,16 +690,24 @@ def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         5. Estruturação dos períodos
         6. Transições entre ideias
         
+        Analise especificamente:
+        - Conectivos utilizados no início de cada parágrafo
+        - Repetições desnecessárias de palavras ou expressões
+        - Uso adequado de pronomes e referências
+        - Conexões entre orações e períodos
+        - Transições entre argumentos e ideias
+        
         Para cada problema identificado, use o formato:
         ERRO
         Trecho: "[trecho exato do texto]"
+        Descrição: [tipo de erro]
         Explicação: [explicação detalhada]
-        Sugestão: [sugestão de melhoria]
+        Sugestão: [correção sugerida]
         FIM_ERRO
         """
         
         response = client.chat.completions.create(
-            model="ft:gpt-4-0125-preview:personal::8TYrLd7E",
+            model="ft:gpt-4o-2024-08-06:personal:competencia-4:AHDXewU3",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
@@ -556,9 +715,12 @@ def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
+        # Revisão dos erros
+        erros_revisados = revisar_erros_competency4(erros, redacao_texto)
+        
         return {
             'analise': analise,
-            'erros': erros
+            'erros': erros_revisados
         }
     except Exception as e:
         logger.error(f"Erro na análise da Competência 4: {str(e)}")
@@ -587,22 +749,26 @@ def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
            - Modo/meio de execução da ação
            - Detalhamento da execução e/ou dos efeitos esperados
            - Finalidade/objetivo da proposta
-        2. Detalhamento e articulação da proposta
-        3. Viabilidade da proposta
-        4. Respeito aos direitos humanos
-        5. Relação com o problema discutido
-        6. Nível de detalhamento das ações sugeridas
+           
+        2. Analise especificamente:
+           - Detalhamento e articulação da proposta
+           - Viabilidade da proposta
+           - Respeito aos direitos humanos
+           - Relação com o problema discutido
+           - Nível de detalhamento das ações sugeridas
+           - Conexão entre a proposta e a argumentação desenvolvida
         
         Para cada problema identificado, use o formato:
         ERRO
         Trecho: "[trecho exato do texto]"
+        Descrição: [tipo de erro]
         Explicação: [explicação detalhada]
-        Sugestão: [sugestão de melhoria]
+        Sugestão: [correção sugerida]
         FIM_ERRO
         """
         
         response = client.chat.completions.create(
-            model="ft:gpt-4-0125-preview:personal::8TYtMe8F",
+            model="ft:gpt-4o-2024-08-06:personal:competencia-5:AHGVPnJG",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
@@ -610,9 +776,12 @@ def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         analise = response.choices[0].message.content
         erros = extrair_erros_do_resultado(analise)
         
+        # Revisão dos erros
+        erros_revisados = revisar_erros_competency5(erros, redacao_texto)
+        
         return {
             'analise': analise,
-            'erros': erros
+            'erros': erros_revisados
         }
     except Exception as e:
         logger.error(f"Erro na análise da Competência 5: {str(e)}")
@@ -2145,12 +2314,15 @@ def main():
             st.error("Formato da chave da API OpenAI inválido")
             st.stop()
 
+        # Inicialização do cliente OpenAI
+        if 'openai_client' not in st.session_state:
+            client = initialize_openai_client()
+            if client is None:
+                st.error("Falha ao inicializar cliente OpenAI. Verifique a configuração da API key.")
+                st.stop()
+
         # Inicialização dos clientes
         try:
-            # OpenAI
-            openai.api_key = st.secrets["openai"]["api_key"]
-            st.session_state.openai_api_key = openai.api_key
-            
             # ElevenLabs
             set_api_key(st.secrets["elevenlabs"]["api_key"])
         except Exception as e:
@@ -2227,7 +2399,7 @@ def main():
             # Botão para reiniciar
             if st.button("Reiniciar Aplicação"):
                 for key in list(st.session_state.keys()):
-                    if key != 'openai_api_key':  # Mantém a API key
+                    if key != 'openai_client':  # Mantém o cliente OpenAI
                         del st.session_state[key]
                 st.rerun()
 
