@@ -461,7 +461,7 @@ def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         erros_por_criterio = {}
         for criterio, prompt in criterios.items():
             prompt_formatado = prompt.format(redacao_texto=redacao_texto)
-            resposta = client.chat.completions.create(
+            resposta = client.ChatCompletion.create(
                 model="ft:gpt-4o-2024-08-06:personal:competencia-1:AHDQQucG",
                 messages=[{"role": "user", "content": prompt_formatado}],
                 temperature=0.3
@@ -540,7 +540,7 @@ def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         Conclusão: [Visão geral da qualidade técnica]
         """
         
-        resposta_analise = client.chat.completions.create(
+        resposta_analise = client.ChatCompletion.create(
             model="ft:gpt-4-0125-preview:personal::8TYkJb4B",
             messages=[{"role": "user", "content": prompt_analise}],
             temperature=0.3
@@ -589,7 +589,7 @@ def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="ft:gpt-4o-2024-08-06:personal:competencia-2:AHDT84HO",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -642,7 +642,7 @@ def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="ft:gpt-4o-2024-08-06:personal:competencia-3:AHDUfZRb",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -702,7 +702,7 @@ def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="ft:gpt-4o-2024-08-06:personal:competencia-4:AHDXewU3",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -763,7 +763,7 @@ def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any
         FIM_ERRO
         """
         
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="ft:gpt-4o-2024-08-06:personal:competencia-5:AHGVPnJG",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
