@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Tuple
 import plotly.graph_objects as go
 from collections import Counter
 from anthropic import Anthropic
-from elevenlabs import generate as generate_audio
+from elevenlabs import Client
 from elevenlabs import Voice, VoiceSettings
 import re
 
@@ -22,14 +22,16 @@ st.set_page_config(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Inicialização dos clientes
+
+# Na inicialização dos clientes
 try:
     # Anthropic (Claude)
-    client = Anthropic(api_key=st.secrets["anthropic"]["api_key"])
+    claude_client = Anthropic(api_key=st.secrets["anthropic"]["api_key"])
+    # ElevenLabs
+    eleven_client = Client(api_key=st.secrets["elevenlabs"]["api_key"])
 except Exception as e:
     logger.error(f"Erro na inicialização dos clientes: {e}")
     st.error("Erro ao inicializar conexões. Por favor, tente novamente mais tarde.")
-
 # Constantes Globais
 COMPETENCIES = {
     "competency1": "Domínio da Norma Culta",
