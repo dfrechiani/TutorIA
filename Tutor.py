@@ -13,20 +13,16 @@ import re
 # No início do arquivo, após as importações
 def initialize_openai_client():
     try:
+        # Configurar cliente OpenAI usando a chave correta
         openai.api_key = st.secrets["openai"]["api_key"]
+        # Em vez de usar openai.Client, usamos apenas o módulo openai
         if not openai.api_key.startswith("sk-"):
-            raise ValueError("Invalid API key format")
-        client = openai.Client(api_key=openai.api_key)
-        # Store the client in session state
-        st.session_state.openai_client = client
-        return client
-    except KeyError:
-        logger.error("OpenAI API key not found in secrets")
-        st.error("OpenAI API key not configured")
+            raise ValueError("Formato de API key inválido")
+        return openai  # Retorna o próprio módulo openai
     except Exception as e:
-        logger.error(f"Error initializing OpenAI client: {e}")
-        st.error("Error connecting to OpenAI")
-    return None
+        logger.error(f"Erro ao inicializar cliente OpenAI: {e}")
+        st.error("Erro ao inicializar conexão com OpenAI. Verifique a chave da API.")
+        return None
 # Configuração inicial do Streamlit
 st.set_page_config(
     page_title="Sistema de Análise de Redação ENEM",
@@ -2316,10 +2312,11 @@ def main():
 
         # Inicialização do cliente OpenAI
         if 'openai_client' not in st.session_state:
-            client = initialize_openai_client()
-            if client is None:
+            openai_client = initialize_openai_client()
+            if openai_client is None:
                 st.error("Falha ao inicializar cliente OpenAI. Verifique a configuração da API key.")
                 st.stop()
+            st.session_state.openai_client = openai_client
 
         # Inicialização dos clientes
         try:
