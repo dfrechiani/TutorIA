@@ -1479,327 +1479,180 @@ def atribuir_nota_competency5(analise: str, erros: List[Dict[str, Any]]) -> Dict
             'justificativa': "Erro ao gerar nota e justificativa."
         }
 
+import json
+import logging
+from elevenlabs import generate, set_api_key
+import openai
+
+logger = logging.getLogger(__name__)
+
 class RedacaoTutor:
     """Sistema de tutoria inteligente para redações do ENEM"""
-    def __init__(self, client: Anthropic, eleven_labs_client):
-        self.client = client
-        self.eleven_labs = eleven_labs_client
-        self.competencies = COMPETENCIES
+    def __init__(self, openai_api_key: str, elevenlabs_api_key: str, competencies: dict):
+        # Configuração das APIs
+        openai.api_key = openai_api_key
+        set_api_key(elevenlabs_api_key)
+        self.competencies = competencies
 
-    def iniciar_tutoria(self, resultados_analise: Dict[str, Any]) -> Dict[str, Any]:
+    def iniciar_tutoria(self, resultados_analise: dict) -> dict:
         """
         Inicia uma sessão de tutoria baseada nos resultados da análise.
-        
-        Args:
-            resultados_analise: Resultados da análise da redação
-            
-        Returns:
-            Dict contendo plano de tutoria
         """
-        # Extrair dados relevantes
-        erros_por_competencia = resultados_analise['erros_especificos']
-        notas = resultados_analise['notas']
-        analises = resultados_analise['analises_detalhadas']
-        
-        # Identificar competência com menor nota
-        competencia_foco = min(notas.items(), key=lambda x: x[1])[0]
-        
-        # Criar plano de tutoria
-        plano = self.criar_plano_tutoria(
-            competencia_foco,
-            erros_por_competencia[competencia_foco],
-            notas[competencia_foco],
-            analises[competencia_foco]
-        )
-        
-        return plano
+        try:
+            erros_por_competencia = resultados_analise['erros_especificos']
+            notas = resultados_analise['notas']
+            analises = resultados_analise['analises_detalhadas']
+            competencia_foco = min(notas.items(), key=lambda x: x[1])[0]
+            return self.criar_plano_tutoria(
+                competencia_foco,
+                erros_por_competencia.get(competencia_foco, []),
+                notas.get(competencia_foco, 0),
+                analises.get(competencia_foco, "")
+            )
+        except Exception as e:
+            logger.error(f"Erro ao iniciar tutoria: {e}")
+            return {}
 
-    def criar_plano_tutoria(
-        self, 
-        competencia: str, 
-        erros: List[Dict], 
-        nota: int, 
-        analise: str
-    ) -> Dict[str, Any]:
+    def criar_plano_tutoria(self, competencia: str, erros: list, nota: int, analise: str) -> dict:
         """
         Cria um plano de tutoria personalizado.
         """
         prompt = f"""
-        Com base na análise desta redação na competência {self.competencies[competencia]}:
-        
+        Com base na análise desta redação na competência {self.competencies.get(competencia, "Desconhecida")}:
         Nota: {nota}/200
         Análise: {analise}
         Erros identificados: {json.dumps(erros, indent=2)}
-        
-        Crie um plano de tutoria que inclua:
-        1. Diagnóstico detalhado das dificuldades
-        2. Sequência de exercícios específicos
-        3. Pontos de checagem de progresso
-        4. Recomendações de estudo
-        5. Critérios de avanço para próximo nível
-        
-        O plano deve ser interativo e usar voz para feedback.
-        
-        Responda em formato JSON com a seguinte estrutura:
-        {
-            "diagnostico": {
-                "dificuldades_principais": [],
-                "pontos_fortes": [],
-                "areas_foco": []
-            },
-            "plano_estudo": {
-                "modulos": [
-                    {
-                        "titulo": "",
-                        "objetivo": "",
-                        "exercicios": [],
-                        "recursos": []
-                    }
-                ],
-                "criterios_avanco": [],
-                "tempo_estimado": ""
-            },
-            "recomendacoes": []
-        }
-        """
-        
-        try:
-            response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-            
-            return json.loads(response.content)
-            
-        except Exception as e:
-            logger.error(f"Erro ao gerar plano de estudos: {e}")
-            return {
-                "diagnostico": {
-                    "dificuldades_principais": ["Erro ao gerar diagnóstico"],
-                    "pontos_fortes": [],
-                    "areas_foco": []
-                },
-                "plano_estudo": {
-                    "modulos": [],
-                    "criterios_avanco": [],
-                    "tempo_estimado": "N/A"
-                },
-                "recomendacoes": ["Tente novamente mais tarde"]
-            }
-    def gerar_exercicio(self, competencia: str, dificuldade: str) -> Dict[str, Any]:
-        """
-        Gera exercício personalizado baseado na competência e nível de dificuldade.
-        
-        Args:
-            competencia: Competência a ser trabalhada
-            dificuldade: Nível de dificuldade (básico, intermediário, avançado)
-            
-        Returns:
-            Dict contendo exercício
-        """
-        prompt = f"""
-        Crie um exercício prático para desenvolver habilidades na competência {self.competencies[competencia]} do ENEM.
-        
-        Nível de dificuldade: {dificuldade}
-        
-        O exercício deve:
-        1. Ser específico e focado na competência
-        2. Incluir instruções claras
-        3. Ter formato interativo
-        4. Incluir exemplos
-        5. Ter critérios claros de avaliação
-        
-        Responda em formato JSON:
-        {{
-            "titulo": "Título do exercício",
-            "instrucoes": "Instruções detalhadas",
-            "exemplos": ["exemplo 1", "exemplo 2"],
-            "tarefa": "Descrição da tarefa",
-            "dicas": ["dica 1", "dica 2"],
-            "criterios_avaliacao": ["critério 1", "critério 2"],
-            "feedback_template": "Template para feedback baseado nos critérios"
-        }}
-        """
-        
-        try:
-            response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-            
-            return json.loads(response.content)
-        
-        except Exception as e:
-            logger.error(f"Erro ao gerar exercício: {e}")
-            return {
-                "titulo": "Exercício Básico",
-                "instrucoes": "Não foi possível gerar o exercício",
-                "exemplos": [],
-                "tarefa": "Tente novamente mais tarde",
-                "dicas": [],
-                "criterios_avaliacao": [],
-                "feedback_template": ""
-            }
 
-    def avaliar_resposta(
-        self, 
-        exercicio: Dict[str, Any], 
-        resposta: str, 
-        competencia: str
-    ) -> Dict[str, Any]:
-        """
-        Avalia resposta do aluno para um exercício.
-        
-        Args:
-            exercicio: Exercício proposto
-            resposta: Resposta do aluno
-            competencia: Competência sendo avaliada
-            
-        Returns:
-            Dict com feedback
-        """
-        prompt = f"""
-        Avalie a seguinte resposta para um exercício de {self.competencies[competencia]}:
-        
-        Exercício:
-        {json.dumps(exercicio, indent=2)}
-        
-        Resposta do aluno:
-        {resposta}
-        
-        Critérios de avaliação:
-        {json.dumps(exercicio['criterios_avaliacao'], indent=2)}
-        
-        Forneça:
-        1. Feedback detalhado e construtivo
-        2. Pontos positivos específicos
-        3. Áreas de melhoria com sugestões práticas
-        4. Próximos passos recomendados
-        5. Pontuação (0-10)
-        
+        Crie um plano de tutoria que inclua:
+        1. Diagnóstico detalhado
+        2. Sequência de exercícios
+        3. Pontos de checagem
+        4. Recomendações de estudo
+        5. Critérios de avanço
+
         Responda em formato JSON:
         {{
-            "feedback_geral": "Feedback principal",
-            "pontos_positivos": ["ponto 1", "ponto 2"],
-            "areas_melhoria": ["área 1", "área 2"],
-            "sugestoes": ["sugestão 1", "sugestão 2"],
-            "proximos_passos": ["passo 1", "passo 2"],
-            "pontuacao": int,
-            "feedback_voz": "Versão resumida do feedback para áudio"
+            "diagnostico": {{}},
+            "plano_estudo": {{}},
+            "recomendacoes": []
         }}
         """
-        
         try:
-            response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Você é um tutor especializado em redação para o ENEM."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1500
             )
-            
-            feedback = json.loads(response.content)
-            
-            # Gerar áudio do feedback
-            if self.eleven_labs:
-                audio = self.gerar_audio_feedback(feedback['feedback_voz'])
-                feedback['audio'] = audio
-                
-            return feedback
-            
+            return json.loads(response['choices'][0]['message']['content'])
         except Exception as e:
-            logger.error(f"Erro ao avaliar resposta: {e}")
-            return {
-                "feedback_geral": "Não foi possível avaliar a resposta",
-                "pontos_positivos": [],
-                "areas_melhoria": [],
-                "sugestoes": [],
-                "proximos_passos": ["Tente novamente"],
-                "pontuacao": 0,
-                "feedback_voz": "Erro na avaliação"
-            }
+            logger.error(f"Erro ao criar plano de tutoria: {e}")
+            return {}
 
     def gerar_audio_feedback(self, texto: str) -> bytes:
         """
-        Gera áudio do feedback usando ElevenLabs.
-        
-        Args:
-            texto: Texto do feedback
-            
-        Returns:
-            Bytes do áudio gerado
+        Gera áudio do feedback usando ElevenLabs em Português do Brasil.
         """
         try:
-            return self.eleven_labs.generate(text=texto)
+            audio = generate(
+                text=texto,
+                voice="Ana",  # Use uma voz compatível com PT-BR, ex.: "Ana"
+                model="eleven_monolingual_v1"
+            )
+            return audio
         except Exception as e:
             logger.error(f"Erro ao gerar áudio: {e}")
             return b""
 
-    def gerar_feedback_final(
-        self, 
-        competencia: str, 
-        historico_exercicios: List[Dict]
-    ) -> Dict[str, Any]:
+    def avaliar_resposta(self, exercicio: dict, resposta: str, competencia: str) -> dict:
         """
-        Gera feedback final da sessão de tutoria.
-        
-        Args:
-            competencia: Competência trabalhada
-            historico_exercicios: Histórico de exercícios realizados
-            
-        Returns:
-            Dict com feedback final
+        Avalia resposta do aluno para um exercício.
         """
         prompt = f"""
-        Gere um feedback final para a sessão de tutoria em {self.competencies[competencia]}.
-        
+        Avalie a seguinte resposta para um exercício da competência {self.competencies.get(competencia, "Desconhecida")}:
+        Exercício: {json.dumps(exercicio, indent=2)}
+        Resposta do aluno: {resposta}
+
+        Critérios de avaliação: {json.dumps(exercicio.get("criterios_avaliacao", []), indent=2)}
+
+        Responda em JSON:
+        {{
+            "feedback_geral": "",
+            "pontos_positivos": [],
+            "areas_melhoria": [],
+            "proximos_passos": [],
+            "pontuacao": 0
+        }}
+        """
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Você é um avaliador especializado em redação para o ENEM."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            return json.loads(response['choices'][0]['message']['content'])
+        except Exception as e:
+            logger.error(f"Erro ao avaliar resposta: {e}")
+            return {
+                "feedback_geral": "Não foi possível avaliar a resposta.",
+                "pontos_positivos": [],
+                "areas_melhoria": [],
+                "proximos_passos": [],
+                "pontuacao": 0
+            }
+
+    def gerar_feedback_final(self, competencia: str, historico_exercicios: list) -> dict:
+        """
+        Gera feedback final da sessão de tutoria.
+        """
+        prompt = f"""
+        Gere um feedback final para a sessão de tutoria em {self.competencies.get(competencia, "Desconhecida")}.
         Histórico de exercícios:
         {json.dumps(historico_exercicios, indent=2)}
-        
+
         Forneça:
         1. Análise do progresso
         2. Principais conquistas
         3. Áreas que ainda precisam de atenção
         4. Recomendações para estudo contínuo
         5. Próximos objetivos sugeridos
-        
+
         Responda em formato JSON:
         {{
-            "analise_progresso": "Análise detalhada",
-            "conquistas": ["conquista 1", "conquista 2"],
-            "areas_atencao": ["área 1", "área 2"],
-            "recomendacoes": ["recomendação 1", "recomendação 2"],
-            "proximos_objetivos": ["objetivo 1", "objetivo 2"],
-            "mensagem_motivacional": "Mensagem para áudio"
+            "analise_progresso": "",
+            "conquistas": [],
+            "areas_atencao": [],
+            "recomendacoes": [],
+            "proximos_objetivos": [],
+            "mensagem_motivacional": ""
         }}
         """
-        
         try:
-            response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "Você é um tutor especializado em redação para o ENEM."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1500
             )
+            feedback = json.loads(response['choices'][0]['message']['content'])
             
-            feedback = json.loads(response.content)
-            
-            # Gerar áudio da mensagem motivacional
-            if self.eleven_labs:
-                audio = self.gerar_audio_feedback(feedback['mensagem_motivacional'])
-                feedback['audio'] = audio
-                
+            if "mensagem_motivacional" in feedback:
+                feedback['audio'] = self.gerar_audio_feedback(feedback["mensagem_motivacional"])
             return feedback
-            
         except Exception as e:
             logger.error(f"Erro ao gerar feedback final: {e}")
-            return {
-                "analise_progresso": "Não foi possível gerar análise",
-                "conquistas": [],
-                "areas_atencao": [],
-                "recomendacoes": ["Continuar praticando"],
-                "proximos_objetivos": [],
-                "mensagem_motivacional": "Continue se esforçando"
-            }
+            return {}
+
 
 def pagina_tutoria():
     """Página principal do sistema de tutoria"""
