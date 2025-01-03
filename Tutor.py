@@ -61,16 +61,10 @@ MODELOS_COMPETENCIAS = {
 
 def pagina_envio_redacao():
     """Página de envio de redação com campo de digitação e upload de arquivo txt."""
-    if 'user' not in st.session_state:
-        st.warning("Faça login para enviar uma redação")
-        st.session_state.page = 'login'
-        st.rerun()
-
     st.title("Envio de Redação ENEM")
-    st.write(f"Usuário: {st.session_state.user['username']}")
 
     # Campos básicos
-    nome_aluno = st.text_input("Nome do aluno:", value=st.session_state.user['username'])
+    nome_aluno = st.text_input("Nome do aluno:", value="")
     tema_redacao = st.text_input("Tema da redação:")
 
     # Inicializar texto_redacao se necessário
@@ -109,8 +103,7 @@ def pagina_envio_redacao():
                             resultados = processar_redacao_completa(
                                 texto_redacao, 
                                 tema_redacao, 
-                                cohmetrix_results, 
-                                st.session_state.user['id']
+                                cohmetrix_results
                             )
                             
                             if resultados:
@@ -125,7 +118,7 @@ def pagina_envio_redacao():
                                 
                                 # Salvar redação
                                 save_redacao(
-                                    st.session_state.user['id'],
+                                    nome_aluno,
                                     texto_redacao,
                                     tema_redacao,
                                     resultados['notas'],
@@ -149,7 +142,8 @@ def pagina_envio_redacao():
 
     # Exibir últimas redações
     st.divider()
-    mostrar_ultimas_redacoes(st.session_state.user['id'])
+    mostrar_ultimas_redacoes()
+
 
 def processar_redacao_completa(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """
