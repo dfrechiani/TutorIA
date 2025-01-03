@@ -60,98 +60,120 @@ MODELOS_COMPETENCIAS = {
 
 
 def pagina_envio_redacao():
-    """Página de envio de redação com campo de digitação e upload de arquivo txt."""
+    """Página de envio de redação com processamento real"""
     st.title("Envio de Redação ENEM")
 
-    # Campos básicos
     nome_aluno = st.text_input("Nome do aluno:")
     tema_redacao = st.text_input("Tema da redação:")
 
-    # Inicializar texto_redacao se necessário
     if 'texto_redacao' not in st.session_state:
         st.session_state.texto_redacao = ""
 
-    # Campo de texto para digitação
     texto_redacao = st.text_area(
         "Digite sua redação aqui:", 
         value=st.session_state.texto_redacao,
-        height=400,
-        key="area_redacao"
+        height=400
     )
 
     # Upload de arquivo txt
-    st.write("Ou faça upload de um arquivo .txt")
-    uploaded_file = st.file_uploader("", type=['txt'], key="uploader")
-    
-    # Processar arquivo txt se fornecido
-    if uploaded_file is not None:
+    uploaded_file = st.file_uploader("Ou faça upload de um arquivo .txt", type=['txt'])
+    if uploaded_file:
         texto_redacao = uploaded_file.getvalue().decode("utf-8")
         st.session_state.texto_redacao = texto_redacao
 
-    # Botão de processamento
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if tema_redacao and texto_redacao:
-            if st.button("Processar Redação", key="processar_redacao", use_container_width=True):
-                with st.spinner("Analisando redação..."):
-                    try:
-                        # Simulação de processamento da redação
-                        resultados = {
-                            "notas": {"competency1": 160, "competency2": 180, "competency3": 150, "competency4": 170, "competency5": 140},
-                            "analises_detalhadas": {"competency1": "Boa organização.", "competency2": "Compreensão clara.", "competency3": "Pouca coerência.", "competency4": "Erros gramaticais.", "competency5": "Proposta incompleta."},
-                        }
-                        
-                        st.session_state.update({
-                            'resultados': resultados,
-                            'nome_aluno': nome_aluno,
-                            'tema_redacao': tema_redacao,
-                            'redacao_texto': texto_redacao,
-                            'texto_redacao': "",  # Limpar campo após processamento
-                        })
+    if tema_redacao and texto_redacao:
+        if st.button("Processar Redação"):
+            with st.spinner("Analisando redação..."):
+                try:
+                    # Validar entrada
+                    valido, msg = validar_redacao(texto_redacao, tema_redacao)
+                    if not valido:
+                        st.error(msg)
+                        return
 
-                        st.success("Redação processada com sucesso!")
-                        st.write("Notas por competência:")
-                        for comp, nota in resultados["notas"].items():
-                            st.write(f"{comp}: {nota}")
-                    except Exception as e:
-                        st.error("Erro ao processar a redação.")
-                        logging.error(f"Erro ao processar redação: {str(e)}", exc_info=True)
-        else:
-            st.button("Processar Redação", key="processar_redacao", 
-                     disabled=True, use_container_width=True)
-            st.warning("Por favor, insira o tema e o texto da redação antes de processar.")
+                    # Processar redação usando as APIs
+                    resultados = processar_redacao_completa(texto_redacao, tema_redacao)
+                    
+                    # Salvar resultados no session_state
+                    st.session_state.update({
+                        'resultados': resultados,
+                        'nome_aluno': nome_aluno,
+                        'tema_redacao': tema_redacao,
+                        'redacao_texto': texto_redacao
+                    })
+
+                    st.success("Redação processada com sucesso!")
+                    
+                    # Exibir resumo das notas
+                    st.write("Notas por competência:")
+                    for comp, nota in resultados['notas'].items():
+                        st.write(f"{COMPETENCIES[comp]}: {nota}")
+
+                except Exception as e:
+                    st.error("Erro ao processar a redação.")
+                    logger.error(f"Erro ao processar redação: {str(e)}", exc_info=True)
+    else:
+        st.button("Processar Redação", disabled=True)
+        st.warning("Por favor, insira o tema e o texto da redação antes de processar.")
 
 
 def processar_redacao_completa(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
+    """
+    Processa a redação completa usando as APIs para análise real.
+    """
+    logger.info("Iniciando processamento da redação")
+
     resultados = {
         'analises_detalhadas': {},
         'notas': {},
         'erros_especificos': {},
-        'justificativas': {}
+        'justificativas': {},
+        'texto_original': redacao_texto
     }
     
     # Processar cada competência
-    for comp in COMPETENCIES.keys():
+    for comp, modelo in MODELOS_COMPETENCIAS.items():
         try:
-            # Realizar análise usando o modelo específico da competência
-            modelo = MODELOS_COMPETENCIAS[comp]
-            analise = None
-            
+            # Realizar análise da competência usando o modelo específico
             if comp == "competency1":
-                analise = analisar_competency1(redacao_texto, tema_redacao)
+                resultado_analise = analisar_competency1(redacao_texto, tema_redacao)
             elif comp == "competency2":
-                analise = analisar_competency2(redacao_texto, tema_redacao)
-            # ... repetir para outras competências
+                resultado_analise = analisar_competency2(redacao_texto, tema_redacao)
+            elif comp == "competency3":
+                resultado_analise = analisar_competency3(redacao_texto, tema_redacao)
+            elif comp == "competency4":
+                resultado_analise = analisar_competency4(redacao_texto, tema_redacao)
+            else:  # competency5
+                resultado_analise = analisar_competency5(redacao_texto, tema_redacao)
             
-            if analise:
-                resultados['analises_detalhadas'][comp] = analise['analise']
-                resultados['notas'][comp] = analise['nota']
-                resultados['erros_especificos'][comp] = analise['erros']
-                resultados['justificativas'][comp] = analise['justificativa']
-                
+            # Processar erros identificados
+            erros_revisados = resultado_analise.get('erros', [])
+            
+            # Atribuir nota baseado na análise completa
+            if comp == "competency1":
+                resultado_nota = atribuir_nota_competency1(resultado_analise['analise'], erros_revisados)
+            elif comp == "competency2":
+                resultado_nota = atribuir_nota_competency2(resultado_analise['analise'], erros_revisados)
+            elif comp == "competency3":
+                resultado_nota = atribuir_nota_competency3(resultado_analise['analise'], erros_revisados)
+            elif comp == "competency4":
+                resultado_nota = atribuir_nota_competency4(resultado_analise['analise'], erros_revisados)
+            else:  # competency5
+                resultado_nota = atribuir_nota_competency5(resultado_analise['analise'], erros_revisados)
+            
+            # Preencher resultados
+            resultados['analises_detalhadas'][comp] = resultado_analise['analise']
+            resultados['notas'][comp] = resultado_nota['nota']
+            resultados['justificativas'][comp] = resultado_nota['justificativa']
+            resultados['erros_especificos'][comp] = erros_revisados
+
         except Exception as e:
             logger.error(f"Erro ao processar competência {comp}: {str(e)}")
-            
+            resultados['analises_detalhadas'][comp] = "Erro na análise"
+            resultados['notas'][comp] = 0
+            resultados['justificativas'][comp] = "Não foi possível realizar a análise"
+            resultados['erros_especificos'][comp] = []
+
     return resultados
 
 def pagina_resultado_analise():
@@ -334,260 +356,233 @@ def extrair_erros_do_resultado(resultado: str) -> List[Dict[str, str]]:
         'total_erros': len(erros_revisados)
     }
 
-def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
-    """
-    Análise da Competência 2: Compreensão do Tema.
-    
-    Args:
-        redacao_texto: Texto da redação
-        tema_redacao: Tema da redação
+def analisar_competency1(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
+    """Análise da Competência 1 usando o modelo fine-tuned"""
+    try:
+        prompt = f"""
+        Analise o domínio da norma culta na seguinte redação:
         
-    Returns:
-        Dict contendo análise e erros identificados
-    """
-    MODELO_COMP2 = "ft:gpt-4o-2024-08-06:personal:competencia-2:AHDT84HO"
-    
-    prompt_analise = f"""
-    Analise a compreensão do tema na seguinte redação:
-    
-    Texto da redação: {redacao_texto}
-    Tema proposto: {tema_redacao}
-    
-    Forneça uma análise detalhada, incluindo:
-    1. Avaliação do domínio do tema proposto.
-    2. Análise da presença das palavras principais do tema ou seus sinônimos em cada parágrafo.
-    3. Avaliação da argumentação e uso de repertório sociocultural.
-    4. Análise da clareza do ponto de vista adotado.
-    5. Avaliação do vínculo entre o repertório e a discussão proposta.
-    6. Verificação de cópia de trechos dos textos motivadores.
-    7. Análise da citação de fontes do repertório utilizado.
-    
-    Para cada ponto analisado que represente um erro ou área de melhoria, forneça um exemplo específico do texto, no seguinte formato:
-    ERRO
-    Trecho: "[Trecho exato do texto]"
-    Explicação: [Explicação detalhada]
-    Sugestão: [Sugestão de melhoria]
-    FIM_ERRO
+        Tema: {tema_redacao}
+        
+        Texto:
+        {redacao_texto}
+        
+        Forneça uma análise detalhada considerando:
+        1. Uso correto da norma culta
+        2. Desvios gramaticais
+        3. Adequação da linguagem
+        4. Clareza e precisão
+        
+        Para cada erro identificado, use o formato:
+        ERRO
+        Trecho: "[trecho exato do texto]"
+        Explicação: [explicação detalhada]
+        Sugestão: [sugestão de correção]
+        FIM_ERRO
+        """
+        
+        response = openai.ChatCompletion.create(
+            model=MODELOS_COMPETENCIAS['competency1'],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        analise = response['choices'][0]['message']['content']
+        erros = extrair_erros_do_resultado(analise)
+        
+        return {
+            'analise': analise,
+            'erros': erros
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na análise da Competência 1: {str(e)}")
+        raise
 
-    Se não houver erros significativos, indique isso claramente na análise.
-
-    Formato da resposta:
-    Domínio do Tema: [Sua análise aqui]
-    Uso de Palavras-chave: [Sua análise aqui]
-    Argumentação e Repertório: [Sua análise aqui]
-    Clareza do Ponto de Vista: [Sua análise aqui]
-    Vínculo Repertório-Discussão: [Sua análise aqui]
-    Originalidade: [Sua análise aqui]
-    Citação de Fontes: [Sua análise aqui]
-    """
-
-# Continuação da função analisar_competency2
-    resposta_analise = client.messages.create(
-        model=MODELO_COMP2,
-        messages=[{"role": "user", "content": prompt_analise}],
-        temperature=0.3
-    )
-    
-    # Remover blocos de ERRO do texto da análise
-    analise_geral = re.sub(r'ERRO\n.*?FIM_ERRO', '', resposta_analise.content, flags=re.DOTALL)
-    
-    # Extrair e revisar erros
-    erros_identificados = extrair_erros_do_resultado(resposta_analise.content)
-    erros_revisados = revisar_erros_competency2(erros_identificados, redacao_texto)
-
-    return {
-        'analise': analise_geral.strip(),
-        'erros': erros_revisados
-    }
+def analisar_competency2(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
+    """Análise da Competência 2 usando o modelo fine-tuned"""
+    try:
+        prompt = f"""
+        Analise a compreensão do tema na seguinte redação:
+        
+        Tema: {tema_redacao}
+        
+        Texto:
+        {redacao_texto}
+        
+        Forneça uma análise detalhada considerando:
+        1. Compreensão da proposta de redação e do tema
+        2. Presença das palavras-chave do tema em cada parágrafo
+        3. Desenvolvimento do tema de forma adequada
+        4. Uso e pertinência do repertório sociocultural
+        5. Clareza no ponto de vista defendido
+        6. Vínculo entre o repertório e a discussão proposta
+        
+        Para cada problema identificado, use o formato:
+        ERRO
+        Trecho: "[trecho exato do texto]"
+        Explicação: [explicação detalhada]
+        Sugestão: [sugestão de melhoria]
+        FIM_ERRO
+        """
+        
+        response = openai.ChatCompletion.create(
+            model=MODELOS_COMPETENCIAS['competency2'],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        analise = response['choices'][0]['message']['content']
+        erros = extrair_erros_do_resultado(analise)
+        
+        return {
+            'analise': analise,
+            'erros': erros
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na análise da Competência 2: {str(e)}")
+        raise
 
 def analisar_competency3(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
-    """
-    Análise da Competência 3: Seleção e Organização das Informações.
-    
-    Args:
-        redacao_texto: Texto da redação
-        tema_redacao: Tema da redação
+    """Análise da Competência 3 usando o modelo fine-tuned"""
+    try:
+        prompt = f"""
+        Analise a seleção e organização das informações na seguinte redação:
         
-    Returns:
-        Dict contendo análise e erros identificados
-    """
-    MODELO_COMP3 = "ft:gpt-4o-2024-08-06:personal:competencia-3:AHDUfZRb"
-    
-    prompt_analise = f"""
-    Analise a seleção e organização das informações na seguinte redação:
-    
-    Texto da redação: {redacao_texto}
-    Tema: {tema_redacao}
-
-    Forneça uma análise detalhada, incluindo:
-    1. Avaliação da progressão das ideias e seleção de argumentos.
-    2. Análise da organização das informações e fatos relacionados ao tema.
-    3. Comentários sobre a defesa do ponto de vista e consistência argumentativa.
-    4. Avaliação da autoria e originalidade das informações apresentadas.
-    5. Análise do encadeamento das ideias entre parágrafos.
-    6. Verificação de repetições desnecessárias ou saltos temáticos.
-    7. Avaliação da estrutura de cada parágrafo (argumento, justificativa, repertório, justificativa, frase de finalização).
-
-    Para cada ponto analisado que represente um erro ou área de melhoria, forneça um exemplo específico do texto, no seguinte formato:
-    ERRO
-    Trecho: "[Trecho exato do texto]"
-    Explicação: [Explicação detalhada]
-    Sugestão: [Sugestão de melhoria]
-    FIM_ERRO
-
-    Se não houver erros significativos, indique isso claramente na análise.
-
-    Formato da resposta:
-    Progressão de Ideias: [Sua análise aqui]
-    Organização de Informações: [Sua análise aqui]
-    Defesa do Ponto de Vista: [Sua análise aqui]
-    Autoria e Originalidade: [Sua análise aqui]
-    Encadeamento entre Parágrafos: [Sua análise aqui]
-    Estrutura dos Parágrafos: [Sua análise aqui]
-    """
-
-    resposta_analise = client.messages.create(
-        model=MODELO_COMP3,
-        messages=[{"role": "user", "content": prompt_analise}],
-        temperature=0.3
-    )
-    
-    # Remover blocos de ERRO do texto da análise
-    analise_geral = re.sub(r'ERRO\n.*?FIM_ERRO', '', resposta_analise.content, flags=re.DOTALL)
-    
-    # Extrair e revisar erros
-    erros_identificados = extrair_erros_do_resultado(resposta_analise.content)
-    erros_revisados = revisar_erros_competency3(erros_identificados, redacao_texto)
-
-    return {
-        'analise': analise_geral.strip(),
-        'erros': erros_revisados
-    }
+        Tema: {tema_redacao}
+        
+        Texto:
+        {redacao_texto}
+        
+        Forneça uma análise detalhada considerando:
+        1. Progressão textual (desenvolvimento das ideias)
+        2. Organização dos parágrafos e períodos
+        3. Encadeamento de ideias entre parágrafos
+        4. Uso de argumentos e contra-argumentos
+        5. Coerência na apresentação das informações
+        6. Autoria no desenvolvimento do texto
+        
+        Para cada problema identificado, use o formato:
+        ERRO
+        Trecho: "[trecho exato do texto]"
+        Explicação: [explicação detalhada]
+        Sugestão: [sugestão de melhoria]
+        FIM_ERRO
+        """
+        
+        response = openai.ChatCompletion.create(
+            model=MODELOS_COMPETENCIAS['competency3'],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        analise = response['choices'][0]['message']['content']
+        erros = extrair_erros_do_resultado(analise)
+        
+        return {
+            'analise': analise,
+            'erros': erros
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na análise da Competência 3: {str(e)}")
+        raise
 
 def analisar_competency4(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
-    """
-    Análise da Competência 4: Conhecimento dos Mecanismos Linguísticos.
-    
-    Args:
-        redacao_texto: Texto da redação
-        tema_redacao: Tema da redação
+    """Análise da Competência 4 usando o modelo fine-tuned"""
+    try:
+        prompt = f"""
+        Analise os mecanismos linguísticos na seguinte redação:
         
-    Returns:
-        Dict contendo análise e erros identificados
-    """
-    MODELO_COMP4 = "ft:gpt-4o-2024-08-06:personal:competencia-4:AHDXewU3"
-    
-    prompt_analise = f"""
-    Analise o conhecimento dos mecanismos linguísticos na seguinte redação:
-    
-    Texto da redação: {redacao_texto}
-    Tema: {tema_redacao}
-
-    Forneça uma análise detalhada, incluindo:
-    1. Avaliação do uso de conectivos no início de cada período.
-    2. Análise da articulação entre as partes do texto.
-    3. Avaliação do repertório de recursos coesivos.
-    4. Análise do uso de referenciação (pronomes, sinônimos, advérbios).
-    5. Avaliação das transições entre ideias (causa/consequência, comparação, conclusão).
-    6. Análise da organização de períodos complexos.
-    7. Verificação da repetição de conectivos ao longo do texto.
-
-    Para cada ponto analisado que represente um erro ou área de melhoria, forneça um exemplo específico do texto, no seguinte formato:
-    ERRO
-    Trecho: "[Trecho exato do texto]"
-    Explicação: [Explicação detalhada]
-    Sugestão: [Sugestão de melhoria]
-    FIM_ERRO
-
-    Se não houver erros significativos, indique isso claramente na análise.
-
-    Formato da resposta:
-    Uso de Conectivos: [Sua análise aqui]
-    Articulação Textual: [Sua análise aqui]
-    Recursos Coesivos: [Sua análise aqui]
-    Referenciação: [Sua análise aqui]
-    Transições de Ideias: [Sua análise aqui]
-    Estrutura de Períodos: [Sua análise aqui]
-    """
-
-    resposta_analise = client.messages.create(
-        model=MODELO_COMP4,
-        messages=[{"role": "user", "content": prompt_analise}],
-        temperature=0.3
-    )
-    
-    # Remover blocos de ERRO do texto da análise
-    analise_geral = re.sub(r'ERRO\n.*?FIM_ERRO', '', resposta_analise.content, flags=re.DOTALL)
-    
-    # Extrair e revisar erros
-    erros_identificados = extrair_erros_do_resultado(resposta_analise.content)
-    erros_revisados = revisar_erros_competency4(erros_identificados, redacao_texto)
-
-    return {
-        'analise': analise_geral.strip(),
-        'erros': erros_revisados
-    }
+        Tema: {tema_redacao}
+        
+        Texto:
+        {redacao_texto}
+        
+        Forneça uma análise detalhada considerando:
+        1. Uso de conectivos entre parágrafos e períodos
+        2. Articulação entre as partes do texto
+        3. Recursos de coesão textual
+        4. Uso de referenciação (pronomes, sinônimos, etc.)
+        5. Estruturação dos períodos
+        6. Transições entre ideias
+        
+        Para cada problema identificado, use o formato:
+        ERRO
+        Trecho: "[trecho exato do texto]"
+        Explicação: [explicação detalhada]
+        Sugestão: [sugestão de melhoria]
+        FIM_ERRO
+        """
+        
+        response = openai.ChatCompletion.create(
+            model=MODELOS_COMPETENCIAS['competency4'],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        analise = response['choices'][0]['message']['content']
+        erros = extrair_erros_do_resultado(analise)
+        
+        return {
+            'analise': analise,
+            'erros': erros
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na análise da Competência 4: {str(e)}")
+        raise
 
 def analisar_competency5(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
-    """
-    Análise da Competência 5: Proposta de Intervenção.
-    
-    Args:
-        redacao_texto: Texto da redação
-        tema_redacao: Tema da redação
+    """Análise da Competência 5 usando o modelo fine-tuned"""
+    try:
+        prompt = f"""
+        Analise a proposta de intervenção na seguinte redação:
         
-    Returns:
-        Dict contendo análise e erros identificados
-    """
-    MODELO_COMP5 = "ft:gpt-4o-2024-08-06:personal:competencia-5:AHGVPnJG"
-    
-    prompt_analise = f"""
-    Analise a proposta de intervenção na seguinte redação:
-    
-    Texto da redação: {redacao_texto}
-    Tema: {tema_redacao}
-
-    Forneça uma análise detalhada, incluindo:
-    1. Avaliação da presença dos cinco elementos obrigatórios: agente, ação, modo/meio, detalhamento e finalidade.
-    2. Análise do nível de detalhamento e articulação da proposta com a discussão do texto.
-    3. Avaliação da viabilidade e respeito aos direitos humanos na proposta.
-    4. Verificação da retomada do contexto inicial (se houver).
-    5. Análise da coerência entre a proposta e o tema discutido.
-
-    Para cada ponto que represente um erro ou área de melhoria, forneça um exemplo específico do texto no seguinte formato:
-    ERRO
-    Trecho: "[Trecho exato do texto]"
-    Explicação: [Explicação detalhada]
-    Sugestão: [Sugestão de melhoria]
-    FIM_ERRO
-
-    Se não houver erros significativos, indique isso claramente na análise.
-
-    Formato da resposta:
-    Elementos da Proposta: [Sua análise aqui]
-    Detalhamento e Articulação: [Sua análise aqui]
-    Viabilidade e Direitos Humanos: [Sua análise aqui]
-    Retomada do Contexto: [Sua análise aqui]
-    Coerência com o Tema: [Sua análise aqui]
-    """
-
-    resposta_analise = client.messages.create(
-        model=MODELO_COMP5,
-        messages=[{"role": "user", "content": prompt_analise}],
-        temperature=0.3
-    )
-    
-    # Remover blocos de ERRO do texto da análise
-    analise_geral = re.sub(r'ERRO\n.*?FIM_ERRO', '', resposta_analise.content, flags=re.DOTALL)
-    
-    # Extrair e revisar erros
-    erros_identificados = extrair_erros_do_resultado(resposta_analise.content)
-    erros_revisados = revisar_erros_competency5(erros_identificados, redacao_texto)
-
-    return {
-        'analise': analise_geral.strip(),
-        'erros': erros_revisados
-    }
+        Tema: {tema_redacao}
+        
+        Texto:
+        {redacao_texto}
+        
+        Forneça uma análise detalhada considerando:
+        1. Presença dos elementos obrigatórios (agente, ação, modo/meio, detalhamento, finalidade)
+        2. Detalhamento e articulação da proposta
+        3. Viabilidade da proposta
+        4. Respeito aos direitos humanos
+        5. Relação com o problema discutido
+        6. Nível de detalhamento das ações sugeridas
+        
+        Para cada problema identificado, use o formato:
+        ERRO
+        Trecho: "[trecho exato do texto]"
+        Explicação: [explicação detalhada]
+        Sugestão: [sugestão de melhoria]
+        FIM_ERRO
+        """
+        
+        response = openai.ChatCompletion.create(
+            model=MODELOS_COMPETENCIAS['competency5'],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        
+        analise = response['choices'][0]['message']['content']
+        erros = extrair_erros_do_resultado(analise)
+        
+        return {
+            'analise': analise,
+            'erros': erros
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na análise da Competência 5: {str(e)}")
+        raise
 
 def revisar_erros_competency1(erros_identificados: List[Dict], redacao_texto: str) -> List[Dict]:
     """
