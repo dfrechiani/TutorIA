@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Tuple
 import plotly.graph_objects as go
 from collections import Counter
-from openai import OpenAI  # Nova importação
+import openai
 from elevenlabs import generate, set_api_key
 from elevenlabs import Voice, VoiceSettings
 import re
