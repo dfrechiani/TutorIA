@@ -2129,8 +2129,130 @@ def formatar_erro(erro: Dict[str, str]) -> str:
     - Sugestão: {erro.get('sugestao', '')}
     """
 
-ERROR:__main__:Erro na inicialização dos clientes: module 'openai' has no attribute 'Client'
+def main():
+    """Função principal que controla o fluxo da aplicação"""
+    try:
+        # Verificação inicial das configurações
+        if 'openai' not in st.secrets:
+            st.error("Chave da API OpenAI não configurada no secrets.toml")
+            st.stop()
+            
+        if 'elevenlabs' not in st.secrets:
+            st.error("Chave da API ElevenLabs não configurada no secrets.toml")
+            st.stop()
+            
+        if not st.secrets.openai.api_key.startswith('sk-'):
+            st.error("Formato da chave da API OpenAI inválido")
+            st.stop()
 
-[12:38:10] 🔄 Updated app!
+        # Inicialização dos clientes
+        try:
+            # OpenAI
+            openai.api_key = st.secrets["openai"]["api_key"]
+            st.session_state.openai_api_key = openai.api_key
+            
+            # ElevenLabs
+            set_api_key(st.secrets["elevenlabs"]["api_key"])
+        except Exception as e:
+            logger.error(f"Erro na inicialização dos clientes: {e}")
+            st.error("Erro ao inicializar conexões com as APIs. Por favor, verifique as chaves.")
+            st.stop()
 
-ERROR:__main__:Erro na inicialização dos clientes: module 'openai' has no attribute 'Client'
+        # Configuração inicial da sessão
+        if 'page' not in st.session_state:
+            st.session_state.page = 'envio'
+
+        # Navegação lateral
+        with st.sidebar:
+            st.title("📝 Análise de Redação ENEM")
+            
+            # Botões de navegação
+            if st.button("Nova Redação 📝"):
+                st.session_state.page = 'envio'
+                st.rerun()
+            
+            if 'resultados' in st.session_state:
+                if st.button("Ver Análise 📊"):
+                    st.session_state.page = 'resultado'
+                    st.rerun()
+                
+                if st.button("Tutoria 👨‍🏫"):
+                    st.session_state.page = 'tutoria'
+                    st.rerun()
+            
+            # Mostrar progresso da tutoria se estiver ativa
+            if st.session_state.page == 'tutoria' and 'tutoria_estado' in st.session_state:
+                st.divider()
+                st.subheader("Progresso da Tutoria")
+                st.progress(calcular_progresso_tutoria(st.session_state.tutoria_estado['etapa']))
+                st.metric("Pontuação", st.session_state.tutoria_estado.get('pontuacao', 0))
+
+        # Roteamento de páginas
+        try:
+            if st.session_state.page == 'envio':
+                pagina_envio_redacao()
+                
+            elif st.session_state.page == 'resultado':
+                if 'resultados' in st.session_state:
+                    pagina_resultado_analise()
+                else:
+                    st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
+                    st.session_state.page = 'envio'
+                    st.rerun()
+                    
+            elif st.session_state.page == 'tutoria':
+                if 'resultados' in st.session_state:
+                    # Inicializar tutor se necessário
+                    if 'tutor' not in st.session_state:
+                        st.session_state.tutor = RedacaoTutor(
+                            openai_api_key=st.secrets["openai"]["api_key"],
+                            elevenlabs_api_key=st.secrets["elevenlabs"]["api_key"],
+                            competencies=COMPETENCIES
+                        )
+                    pagina_tutoria()
+                else:
+                    st.warning("Nenhuma análise disponível. Por favor, envie uma redação primeiro.")
+                    st.session_state.page = 'envio'
+                    st.rerun()
+                    
+            else:
+                st.error("Página não encontrada")
+                st.session_state.page = 'envio'
+                st.rerun()
+
+        except Exception as e:
+            logger.error(f"Erro no roteamento de páginas: {str(e)}", exc_info=True)
+            st.error("Ocorreu um erro ao carregar a página solicitada.")
+            
+            # Botão para reiniciar
+            if st.button("Reiniciar Aplicação"):
+                for key in list(st.session_state.keys()):
+                    if key != 'openai_api_key':  # Mantém a API key
+                        del st.session_state[key]
+                st.rerun()
+
+    except Exception as e:
+        # Log do erro crítico
+        logger.critical("Erro crítico na aplicação", exc_info=True)
+        
+        # Mensagem amigável para o usuário
+        st.error("""
+        Ocorreu um erro crítico na aplicação. 
+        Por favor, verifique:
+        1. As chaves das APIs estão configuradas corretamente
+        2. Há conexão com a internet
+        3. Os serviços da OpenAI e ElevenLabs estão disponíveis
+        
+        Se o problema persistir, entre em contato com o suporte.
+        """)
+        
+        # Botão para tentar reiniciar
+        if st.button("Tentar Reiniciar"):
+            st.rerun()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error(f"Erro crítico na aplicação: {str(e)}")
+        logger.critical("Erro crítico na aplicação", exc_info=True)
