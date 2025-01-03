@@ -123,91 +123,61 @@ def pagina_envio_redacao():
 
 
 def processar_redacao_completa(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
-    """
-    Processa a redação completa e gera todos os resultados necessários usando IA.
-    
-    Args:
-        redacao_texto: Texto da redação
-        tema_redacao: Tema da redação
-        
-    Returns:
-        Dict contendo todos os resultados da análise
-    """
-    logger.info("Iniciando processamento da redação")
-
     resultados = {
         'analises_detalhadas': {},
         'notas': {},
-        'nota_total': 0,
         'erros_especificos': {},
-        'justificativas': {},
-        'total_erros_por_competencia': {},
-        'sugestoes_estilo': {},
-        'texto_original': redacao_texto
+        'justificativas': {}
     }
     
     # Processar cada competência
-    for comp, descricao in COMPETENCIES.items():
+    for comp in COMPETENCIES.keys():
         try:
-            # Realizar análise da competência
+            # Realizar análise usando o modelo específico da competência
+            modelo = MODELOS_COMPETENCIAS[comp]
+            analise = None
+            
             if comp == "competency1":
-                resultado_analise = analisar_competency1(redacao_texto, tema_redacao)
+                analise = analisar_competency1(redacao_texto, tema_redacao)
             elif comp == "competency2":
-                resultado_analise = analisar_competency2(redacao_texto, tema_redacao)
-            elif comp == "competency3":
-                resultado_analise = analisar_competency3(redacao_texto, tema_redacao)
-            elif comp == "competency4":
-                resultado_analise = analisar_competency4(redacao_texto, tema_redacao)
-            else:  # competency5
-                resultado_analise = analisar_competency5(redacao_texto, tema_redacao)
+                analise = analisar_competency2(redacao_texto, tema_redacao)
+            # ... repetir para outras competências
             
-            # Garantir que erros existam, mesmo que vazio
-            erros_revisados = resultado_analise.get('erros', [])
-            
-            # Atribuir nota baseado na análise completa e erros
-            if comp == "competency1":
-                resultado_nota = atribuir_nota_competency1(resultado_analise['analise'], erros_revisados)
-            elif comp == "competency2":
-                resultado_nota = atribuir_nota_competency2(resultado_analise['analise'], erros_revisados)
-            elif comp == "competency3":
-                resultado_nota = atribuir_nota_competency3(resultado_analise['analise'], erros_revisados)
-            elif comp == "competency4":
-                resultado_nota = atribuir_nota_competency4(resultado_analise['analise'], erros_revisados)
-            else:  # competency5
-                resultado_nota = atribuir_nota_competency5(resultado_analise['analise'], erros_revisados)
-            
-            # Preencher resultados para esta competência
-            resultados['analises_detalhadas'][comp] = resultado_analise['analise']
-            resultados['notas'][comp] = resultado_nota['nota']
-            resultados['justificativas'][comp] = resultado_nota['justificativa']
-            resultados['erros_especificos'][comp] = erros_revisados
-            resultados['total_erros_por_competencia'][comp] = len(erros_revisados)
-            
-            if 'sugestoes_estilo' in resultado_analise:
-                resultados['sugestoes_estilo'][comp] = resultado_analise['sugestoes_estilo']
-
+            if analise:
+                resultados['analises_detalhadas'][comp] = analise['analise']
+                resultados['notas'][comp] = analise['nota']
+                resultados['erros_especificos'][comp] = analise['erros']
+                resultados['justificativas'][comp] = analise['justificativa']
+                
         except Exception as e:
             logger.error(f"Erro ao processar competência {comp}: {str(e)}")
-            resultados['analises_detalhadas'][comp] = "Erro na análise"
-            resultados['notas'][comp] = 0
-            resultados['justificativas'][comp] = "Não foi possível realizar a análise"
-            resultados['erros_especificos'][comp] = []
-            resultados['total_erros_por_competencia'][comp] = 0
-
-    # Calcular nota total
-    resultados['nota_total'] = sum(resultados['notas'].values())
-    
-    # Salvar no session_state
-    st.session_state.analise_realizada = True
-    st.session_state.resultados = resultados
-    st.session_state.redacao_texto = redacao_texto
-    st.session_state.tema_redacao = tema_redacao
-    st.session_state.erros_especificos_todas_competencias = resultados['erros_especificos']
-    st.session_state.notas_atualizadas = resultados['notas'].copy()
-    st.session_state.ultima_analise_timestamp = datetime.now().isoformat()
-    
-    logger.info("Processamento concluído. Resultados gerados.")
+            
     return resultados
+
+def pagina_resultado_analise():
+    st.title("Resultado da Análise")
+    
+    if 'resultados' not in st.session_state:
+        st.warning("Nenhuma análise disponível")
+        return
+        
+    # Exibir gráfico radar
+    criar_grafico_radar(st.session_state.resultados['notas'])
+    
+    # Exibir análises detalhadas
+    for comp, analise in st.session_state.resultados['analises_detalhadas'].items():
+        with st.expander(f"{COMPETENCIES[comp]} - Nota: {st.session_state.resultados['notas'][comp]}"):
+            st.write(analise)
+            
+            if comp in st.session_state.resultados['erros_especificos']:
+                st.write("**Erros identificados:**")
+                for erro in st.session_state.resultados['erros_especificos'][comp]:
+                    st.write(formatar_erro(erro))
+    
+    # Botão para iniciar tutoria
+    if st.button("Iniciar Tutoria Personalizada"):
+        st.session_state.page = 'tutoria'
+        st.rerun()
 
 def validar_redacao(texto: str, tema: str) -> Tuple[bool, str]:
     """
