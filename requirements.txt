@@ -1,5 +1,5 @@
 streamlit==1.41.1
 plotly==5.18.0
-openai==1.6.1
-elevenlabs==1.50.3
+openai==0.27.8
+elevenlabs==0.2.18
 python-dotenv==1.0.1
