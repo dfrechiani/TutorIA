@@ -1585,7 +1585,7 @@ class RedacaoTutor:
                 },
                 "recomendacoes": ["Tente novamente mais tarde"]
             }
-            def gerar_exercicio(self, competencia: str, dificuldade: str) -> Dict[str, Any]:
+    def gerar_exercicio(self, competencia: str, dificuldade: str) -> Dict[str, Any]:
         """
         Gera exercício personalizado baseado na competência e nível de dificuldade.
         
