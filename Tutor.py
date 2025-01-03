@@ -57,6 +57,98 @@ MODELOS_COMPETENCIAS = {
     "competency5": "ft:gpt-4o-2024-08-06:personal:competencia-5:AHGVPnJG"
 }
 
+def pagina_envio_redacao():
+    """Página de envio de redação com campo de digitação e upload de arquivo txt."""
+    if 'user' not in st.session_state:
+        st.warning("Faça login para enviar uma redação")
+        st.session_state.page = 'login'
+        st.rerun()
+
+    st.title("Envio de Redação ENEM")
+    st.write(f"Usuário: {st.session_state.user['username']}")
+
+    # Campos básicos
+    nome_aluno = st.text_input("Nome do aluno:", value=st.session_state.user['username'])
+    tema_redacao = st.text_input("Tema da redação:")
+
+    # Inicializar texto_redacao se necessário
+    if 'texto_redacao' not in st.session_state:
+        st.session_state.texto_redacao = ""
+
+    # Campo de texto para digitação
+    texto_redacao = st.text_area(
+        "Digite sua redação aqui:", 
+        value=st.session_state.texto_redacao,
+        height=400,
+        key="area_redacao"
+    )
+
+    # Upload de arquivo txt
+    st.write("Ou faça upload de um arquivo .txt")
+    uploaded_file = st.file_uploader("", type=['txt'], key="uploader")
+    
+    # Processar arquivo txt se fornecido
+    if uploaded_file is not None and not texto_redacao:
+        texto_redacao = uploaded_file.getvalue().decode("utf-8")
+        st.session_state.texto_redacao = texto_redacao
+
+    # Botão de processamento
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if tema_redacao:
+            if st.button("Processar Redação", key="processar_redacao", use_container_width=True):
+                if texto_redacao:
+                    with st.spinner("Analisando redação..."):
+                        try:
+                            # Análise com cohmetrix
+                            cohmetrix_results = analyze_with_cohmetrix(texto_redacao)
+                            
+                            # Processar redação
+                            resultados = processar_redacao_completa(
+                                texto_redacao, 
+                                tema_redacao, 
+                                cohmetrix_results, 
+                                st.session_state.user['id']
+                            )
+                            
+                            if resultados:
+                                # Atualizar estados da sessão
+                                st.session_state.update({
+                                    'resultados': resultados,
+                                    'nome_aluno': nome_aluno,
+                                    'tema_redacao': tema_redacao,
+                                    'redacao_texto': texto_redacao,
+                                    'texto_redacao': "",  # Limpar campo após processamento
+                                })
+                                
+                                # Salvar redação
+                                save_redacao(
+                                    st.session_state.user['id'],
+                                    texto_redacao,
+                                    tema_redacao,
+                                    resultados['notas'],
+                                    resultados['analises_detalhadas']
+                                )
+                                
+                                st.success("Redação processada com sucesso!")
+                                st.session_state.page = 'resultado'
+                                st.rerun()
+                            else:
+                                st.error("Não foi possível processar a redação.")
+                        except Exception as e:
+                            st.error("Erro ao processar a redação.")
+                            logging.error(f"Erro ao processar redação: {str(e)}", exc_info=True)
+                else:
+                    st.warning("Por favor, insira o texto da redação antes de processar.")
+        else:
+            st.button("Processar Redação", key="processar_redacao", 
+                     disabled=True, use_container_width=True)
+            st.warning("Por favor, forneça o tema da redação antes de processar.")
+
+    # Exibir últimas redações
+    st.divider()
+    mostrar_ultimas_redacoes(st.session_state.user['id'])
+
 def processar_redacao_completa(redacao_texto: str, tema_redacao: str) -> Dict[str, Any]:
     """
     Processa a redação completa e gera todos os resultados necessários usando IA.
